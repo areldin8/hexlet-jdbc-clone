@@ -2,42 +2,43 @@ package io.hexlet;
 
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.sql.Statement;
+import java.util.Optional;
+
 
 public class Application {
-    // Нужно указывать базовое исключение,
-    // потому что выполнение запросов может привести к исключениям
-    public static void main(String[] args) throws SQLException {
-        // Соединение с базой данных тоже нужно отслеживать
+    public static void main(String[] args) {
         try (var conn = DriverManager.getConnection("jdbc:h2:mem:hexlet_test")) {
-
             var createTableSql = "CREATE TABLE users (id BIGINT PRIMARY KEY AUTO_INCREMENT, username VARCHAR(255), phone VARCHAR(255))";
             try (var statement = conn.createStatement()) {
                 statement.execute(createTableSql);
             }
 
-            var insertSql = "INSERT INTO users (username, phone) VALUES (?, ?)";
-            try (var preparedStatement = conn.prepareStatement(insertSql, Statement.RETURN_GENERATED_KEYS)) {
-                preparedStatement.setString(1, "Sarah");
-                preparedStatement.setString(2, "333333333");
-                preparedStatement.executeUpdate();
+            UserDAO userDAO = new UserDAO(conn);
 
-                var generatedKeys = preparedStatement.getGeneratedKeys();
-                if (generatedKeys.next()) {
-                    System.out.println(generatedKeys.getLong(1));
-                } else {
-                    throw new SQLException("DB have not returned an id after saving the entity");
-                }
+            // Создание нового пользователя
+            User user = new User("Sarah", "333333333");
+            userDAO.save(user);
+            System.out.println("User created with ID: " + user.getId());
+
+            // Поиск пользователя по ID
+            Optional<User> foundUser = userDAO.find(user.getId());
+            foundUser.ifPresent(u -> {
+                System.out.println("Username: " + u.getName());
+                System.out.println("Phone: " + u.getPhone());
+            });
+
+            // Удаление пользователя
+            userDAO.delete(user.getId());
+            System.out.println("User with ID " + user.getId() + " deleted.");
+
+            // Проверка, что пользователь удалён
+            Optional<User> deletedUser = userDAO.find(user.getId());
+            if (deletedUser.isEmpty()) {
+                System.out.println("User with ID " + user.getId() + " was successfully deleted.");
             }
 
-            var selectSql = "SELECT * FROM users";
-            try (var statement = conn.createStatement()) {
-                var resultSet = statement.executeQuery(selectSql);
-                while (resultSet.next()) {
-                    System.out.println(resultSet.getString("username"));
-                    System.out.println(resultSet.getString("phone"));
-                }
-            }
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
     }
 }
